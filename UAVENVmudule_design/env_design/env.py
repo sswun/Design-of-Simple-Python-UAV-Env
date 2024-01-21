@@ -6,6 +6,7 @@ from scipy.spatial import ConvexHull
 from scipy.spatial import Delaunay
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
+from matplotlib import cm
 
 range = np.arange
 
@@ -334,4 +335,67 @@ class solid_env:
         for solid in self.solid_list:
             self.add_scatter_solid(solid, ax1 = ax1)
 
+class solid_env_discretizing:
+    '''
+    将刚体环境离散化为三维数组，其中xlim为x范围，ylim为y范围，zlim为z范围，dx为离散化时的距离微元，可以为
+    list或float，list则包含每一个维度上的距离微元，及[dx, dy, dz]。
+    '''
+    def __init__(self, solid_env:solid_env = None,
+                 xlim:list = [0, 10],
+                 ylim:list = [0, 10],
+                 zlim:list = [0, 10],
+                 dx:list|float = 0.1):
+        if type(solid_env) is None:
+            raise TypeError('solid_env is None or not the type of solid_env')
+        self.solid_env = solid_env
+        self.xlim = copy.copy(xlim)
+        self.ylim = copy.copy(ylim)
+        self.zlim = copy.copy(zlim)
+        self.dx = copy.copy(dx)
+        self.env_discretizing = self.discretizing()
     
+    def discretizing(self):
+        '''
+        将刚体环境离散化为三维数组
+        '''
+        if type(self.dx) is list:
+            dx = self.dx[0]
+            dy = self.dx[1]
+            dz = self.dx[2]
+        else:
+            dx = self.dx
+            dy = self.dx
+            dz = self.dx
+        x = np.arange(self.xlim[0], self.xlim[1], dx, float)
+        y = np.arange(self.ylim[0], self.ylim[1], dy, float)
+        z = np.arange(self.zlim[0], self.zlim[1], dz, float)
+        env_discretizing = np.zeros((len(x), len(y), len(z)), dtype = float)
+        for i1 in range(len(x)):
+            for i2 in range(len(y)):
+                for i3 in range(len(z)):
+                    temp_point = [x[i1], y[i2], z[i3]]
+                    if self.solid_env.point_in_solid_env(temp_point):
+                        env_discretizing[i1, i2, i3] = 1.
+        return env_discretizing
+    
+    def get_discetized_env(self):
+        return copy.deepcopy(self.env_discretizing)
+    
+    def show_discretized_env(self):
+        '''
+        显示离散化后的刚体环境
+        '''
+        array_3d = self.env_discretizing
+        # 获取非零元素的坐标
+        x, y, z = np.where(array_3d == 1)
+        # 创建3D图形
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        ax.scatter(x, y, z, cmap=cm.coolwarm, edgecolor='k')
+        # 设置坐标轴标签
+        ax.set_xlabel('X Label')
+        ax.set_ylabel('Y Label')
+        ax.set_zlabel('Z Label')
+        # 显示图形
+        plt.show()
+
