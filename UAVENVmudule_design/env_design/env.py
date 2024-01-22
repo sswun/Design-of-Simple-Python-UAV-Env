@@ -399,3 +399,22 @@ class solid_env_discretizing:
         # 显示图形
         plt.show()
 
+class Elevation_map_discreting(solid_env_discretizing):
+    '''
+    将高程图离散化为三维数组，注意，高程图中最低点位置海拔必须不小于0
+    '''
+    def __init__(self, elevation_map):
+        self.solid_env = elevation_map
+        self.env_discretizing = self.get_discretized_elevation()
+    
+    def get_discretized_elevation(self):
+        z_size = round(np.max(self.solid_env))
+        x_size = self.solid_env.shape[0]
+        y_size = self.solid_env.shape[1]
+        elevation_discreting = np.zeros((x_size, y_size, z_size))
+        for i in range(x_size):
+            for j in range(y_size):
+                maxz = round(self.solid_env[i, j])
+                elevation_discreting[i, j, :maxz] = 1.
+        return elevation_discreting
+        
