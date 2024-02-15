@@ -255,7 +255,7 @@ def EDBmessage_get(env_discretizied:np.ndarray, target_position:list, now_positi
                 # B信息
                 EDB_message[i, j] = B_message[temp_position_0[0], temp_position_0[1], temp_position_0[2]]
     # 对EDB_message每一行归一化处理
-    for i in range(3):
+    for i in range(2):
         temp_max = np.max(EDB_message[i, :])
         temp_min = np.min(EDB_message[i, :])
         if round(temp_max - temp_min) < 1e-5:
