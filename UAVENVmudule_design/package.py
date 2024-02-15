@@ -164,3 +164,102 @@ def compute_advantage(gamma, lmbda, td_delta):
     return dlmodel.tensor(advantage_list, dtype=dlmodel.float)
 
 
+import torch
+import copy
+def generate_combinations(n:int = 3, element_list:list = [-1,0,1]) -> list:
+    '''
+    生成一个列表组合，输入n为列表元素个数，element_list为列表元素内容
+    '''
+    result = []
+    if n == 1:
+        for i in element_list:
+            result.append([i])
+        return result
+    elif n < 1:
+        raise ValueError('n must be greater than 0')
+    elif type(n) != int:
+        raise TypeError('n must be int')
+    else:
+        for i in element_list:
+            for comb in generate_combinations(n-1, element_list):
+                if type(comb) != list:
+                    result.append([i] + [comb])
+                else:
+                    result.append([i] + comb)
+        return result
+
+def E_message_process(temp_position:list, env_discretizied:np.ndarray, positons_tochoose_raw:list):
+    '''
+    处理temp_position处的E信息
+    '''
+    positons_tochoose = copy.deepcopy(positons_tochoose_raw)
+    for i in range(len(positons_tochoose_raw)):
+        positons_tochoose[i] = [temp_position[j] + positons_tochoose_raw[i][j] for j in range(3)]
+    while temp_position in positons_tochoose:
+        positons_tochoose.remove(temp_position)
+    num_ways_out = 0.
+    for i in range(len(positons_tochoose)):
+        if abs(round(env_discretizied[positons_tochoose[i][0], positons_tochoose[i][1], positons_tochoose[i][2]])) < 1e-5:
+            num_ways_out += 1
+    return num_ways_out / len(positons_tochoose)
+
+def Is_within_restricted_range(position:list, shape_env:tuple):
+    '''
+    判断位置postion是否在shape_env范围中
+    '''
+    for i in range(len(position)):
+        if position[i] < 0 or position[i] >= shape_env[i]:
+            return False
+    return True
+
+def EDBmessage_get(env_discretizied:np.ndarray, target_position:list, now_position:list, B_message:np.ndarray):
+    '''
+    获得当前位置的EDB信息，其中
+    env_discretizied为离散化后的空间信息
+    target_position为目标位置
+    now_position为当前位置
+    B_message为蚂蚁走过的位置信息
+    '''
+    if type(env_discretizied) == list:
+        env_discretizied = np.array(env_discretizied)
+    elif type(env_discretizied) == torch.Tensor:
+        env_discretizied = env_discretizied.to('cpu').numpy()
+        
+    if type(env_discretizied) != np.ndarray:
+        raise TypeError('env_discretizied must be np.ndarray')
+    
+    shape_env = env_discretizied.shape
+    size = len(shape_env)
+
+    positons_tochoose_raw = generate_combinations(n=3, element_list=[-1,0,1])
+    positons_tochoose = copy.deepcopy(positons_tochoose_raw)
+    for i in range(len(positons_tochoose_raw)):
+        positons_tochoose[i] = [now_position[j] + positons_tochoose_raw[i][j] for j in range(3)]
+    while now_position in positons_tochoose:
+        positons_tochoose.remove(now_position)
+
+    EDB_message = np.zeros((3, len(positons_tochoose)))
+    for i in range(3):
+        for j in range(len(positons_tochoose)):
+            temp_position_0 = positons_tochoose[j]
+            if not Is_within_restricted_range(temp_position_0, shape_env):
+                continue
+            if i == 0:
+                # 处理E信息
+                EDB_message[i, j] = E_message_process(temp_position_0, env_discretizied, positons_tochoose_raw)
+            elif i == 1:
+                # 处理D信息
+                EDB_message[i, j] = math.sqrt(math.pow(temp_position_0[0] - target_position[0], 2) + 
+                                            math.pow(temp_position_0[1] - target_position[1], 2))
+            else:
+                # B信息
+                EDB_message[i, j] = B_message[temp_position_0[0], temp_position_0[1], temp_position_0[2]]
+    # 对EDB_message每一行归一化处理
+    for i in range(3):
+        temp_max = np.max(EDB_message[i, :])
+        temp_min = np.min(EDB_message[i, :])
+        if round(temp_max - temp_min) < 1e-5:
+            continue
+        else:
+            EDB_message[i, :] = (EDB_message[i, :] - temp_min) / (temp_max - temp_min)
+    return EDB_message
